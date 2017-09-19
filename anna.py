@@ -68,10 +68,10 @@ y = gv.gvar(data_ave, data_cov)
 #np.random.seed(2)
 
 np.random.seed(0)
-#windows = get_random_window_range(x.size, 5, 3, 10)
+#windows = get_random_window_range(x.size, 5, 3, 40)
 #windows = get_random_window_range_fix_size(x.size, 5, 10)
-windows = get_random_window_points(x.size, 5, 3, 10)
-#windows = get_random_window_points_fix_size(x.size, 5, 10)
+#windows = get_random_window_points(x.size, 5, 3, 40)
+windows = get_random_window_points_fix_size(x.size, 7, 10)
 
 #aic_fit = aic_fit_window
 aic_fit = aic_fit_filter
@@ -106,11 +106,11 @@ print_fit(fit)
 exit(0)
 """
 
-res = aic_fit(x, y, np.array([fcn1, fcn2]), (p0[1], p0[2]), windows, 'C0')
+res = aic_fit(x, y, np.array([fcn0, fcn2]), (p0[0], p0[2]), windows, 'C0')
 print0('AIC mean value and systematic error:', end='\t')
 print0(res)
 
-nboot = 40
+nboot = 200
 bs_res = []
 
 if int(nboot/size)*size != nboot:
@@ -130,7 +130,7 @@ for ib in range(rank*size_per_core, (rank + 1)*size_per_core):
     # data_cov = np.diag(np.diagonal(data_cov))
     y = gv.gvar(data_ave_new_, data_cov_new_)
 
-    res = aic_fit(x, y, np.array([fcn1, fcn2]), (p0[1], p0[2]), windows, 'C0')
+    res = aic_fit(x, y, np.array([fcn0, fcn2]), (p0[0], p0[2]), windows, 'C0')
     bs_res.append(res.mean)
 
 comm.Barrier()

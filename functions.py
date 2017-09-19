@@ -114,7 +114,7 @@ def aic_fit_window(x_, y_, fcns_, p0_, window_, key_):
         x_new_ = x_[window_[i][0]:window_[i][1]]
         y_new_ = y_[window_[i][0]:window_[i][1]]
         for j in range(fcns_.size):
-            fit = lsqfit.nonlinear_fit(data=(x_new_, y_new_), p0=p0_[j], fcn=fcns_[j], debug=True, svdcut=-1e-12)
+            fit = lsqfit.nonlinear_fit(data=(x_new_, y_new_), p0=p0_[j], fcn=fcns_[j], debug=True, svdcut=-1e-6)
             res_.append(fit.pmean[key_])
             aic_.append(2*len(p0_[j]) + fit.chi2)
     aic_ = np.array(aic_)
@@ -134,7 +134,7 @@ def aic_fit_filter(x_, y_, fcns_, p0_, filter_, key_):
         x_new_ = x_[filter_[i]]
         y_new_ = y_[filter_[i]]
         for j in range(fcns_.size):
-            fit = lsqfit.nonlinear_fit(data=(x_new_, y_new_), p0=p0_[j], fcn=fcns_[j], debug=True, svdcut=-1e-12)
+            fit = lsqfit.nonlinear_fit(data=(x_new_, y_new_), p0=p0_[j], fcn=fcns_[j], debug=True, svdcut=-1e-6)
             #print(fit.chi2/fit.dof)
             res_.append(fit.pmean[key_])
             aic_.append(2*len(p0_[j]) + fit.chi2)
