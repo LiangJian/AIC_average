@@ -5,6 +5,9 @@ import gvar as gv
 import time
 from mpi4py import MPI
 
+comm = MPI.COMM_WORLD
+size = comm.Get_size()
+rank = comm.Get_rank()
 
 def fcn0(x_, p_):
     c0 = p_['C0']
@@ -22,6 +25,10 @@ def fcn2(x_, p_):
     c0 = p_['C0']
     m = p_['m']
     return c0 - 4*np.pi*np.sqrt(x_)*np.exp(-m*x_)/m
+
+def print0(args, end='\n'):
+    if rank == 0:
+        print(args,end=end)
 
 n_conf = 200
 n_r2 = 16**2*3 + 1
@@ -47,8 +54,9 @@ for i in range(1, r2_table.size):
 
 ioff = 10
 fit_range = [ioff, r2_table.size - 0]
-print('fitting range:', end='\t')
-print(fit_range)
+print0('fitting range:', end='\t')
+print0(fit_range)
+print0('mpi size: %d'%size)
 
 data = data[:, fit_range[0]:fit_range[1]]
 x = r_table[fit_range[0]:fit_range[1]]
@@ -61,18 +69,9 @@ y = gv.gvar(data_ave, data_cov)
 
 np.random.seed(0)
 #windows = get_random_window_range(x.size, 5, 3, 10)
-#print(windows)
-np.random.seed(0)
 #windows = get_random_window_range_fix_size(x.size, 5, 10)
-#print(windows)
-np.random.seed(1)
 windows = get_random_window_points(x.size, 5, 3, 10)
-#print(windows)
-np.random.seed(0)
 #windows = get_random_window_points_fix_size(x.size, 5, 10)
-#print(windows)
-
-
 
 #aic_fit = aic_fit_window
 aic_fit = aic_fit_filter
@@ -108,25 +107,21 @@ exit(0)
 """
 
 res = aic_fit(x, y, np.array([fcn1, fcn2]), (p0[1], p0[2]), windows, 'C0')
-print('AIC mean value and systematic error:', end='\t')
-print(res)
+print0('AIC mean value and systematic error:', end='\t')
+print0(res)
 
-nboot = 200
+nboot = 40
 bs_res = []
 
-print('(begin AIC boot ...', end='\t')
-st = time.time()
-comm = MPI.COMM_WORLD
-size = comm.Get_size()
-rank = comm.Get_rank()
-print(size)
-
 if int(nboot/size)*size != nboot:
-    print('wrong mpi size vs nboot: %d %d'%(size, nboot))
+    print0('wrong mpi size vs nboot: %d %d'%(size, nboot))
     exit(0)
-
 size_per_core = int(nboot/size)
 np.random.seed(rank)
+
+print0('(begin AIC boot ...', end='\t')
+st = time.time()
+comm.Barrier()
 for ib in range(rank*size_per_core, (rank + 1)*size_per_core):
     xb_ = get_boot_sample(np.arange(0, data.shape[0], 1))
     data_new_ = data[xb_, ...]
@@ -136,11 +131,31 @@ for ib in range(rank*size_per_core, (rank + 1)*size_per_core):
     y = gv.gvar(data_ave_new_, data_cov_new_)
 
     res = aic_fit(x, y, np.array([fcn1, fcn2]), (p0[1], p0[2]), windows, 'C0')
-    print(res)
-    bs_res.append(res)
+    bs_res.append(res.mean)
 
+comm.Barrier()
 ed = time.time()
-print('done in %4.2f' % (ed - st) + 's.)')
+print0('done in %4.2f' % (ed - st) + 's.)')
 
+"""
+sendbuf = np.zeros(100, dtype='i') + rank
+recvbuf = None
+if rank == 0:
+    recvbuf = np.empty([size, 100], dtype='i')
+comm.Gather(sendbuf, recvbuf, root=0)
+print0(np.array(recvbuf).shape)
+exit(0)
+"""
 
-print('AIC statistical error:%\t', get_p68_mean_and_error(np.array([bs_res[i].mean for i in range(len(bs_res))])))
+bs_res = np.array(bs_res)
+bs_res_all = None
+if rank == 0:
+    bs_res_all = np.empty([size, bs_res.size])
+comm.Gather(bs_res, bs_res_all, root=0)
+if rank == 0:
+    bs_res_all = np.array(bs_res_all).reshape(nboot)
+print0('AIC statistical error:',end='\t')
+e_s = 0.
+if rank == 0:
+    e_s = get_p68_mean_and_error(bs_res_all)
+print0(e_s)
