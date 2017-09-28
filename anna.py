@@ -68,10 +68,10 @@ y = gv.gvar(data_ave, data_cov)
 #np.random.seed(2)
 
 np.random.seed(0)
-#windows = get_random_window_range(x.size, 5, 3, 40)
-#windows = get_random_window_range_fix_size(x.size, 5, 10)
-#windows = get_random_window_points(x.size, 5, 3, 40)
-windows = get_random_window_points_fix_size(x.size, 7, 10)
+#windows = get_random_window_range(x.size, 8, 5, 40)
+#`windows = get_random_window_range_fix_size(x.size, 7, 8)
+#windows = get_random_window_points(x.size, 8, 4, 60)
+windows = get_random_window_points_fix_size(x.size, 7, 60)
 
 #aic_fit = aic_fit_window
 aic_fit = aic_fit_filter
