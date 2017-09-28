@@ -4,10 +4,12 @@ import numpy as np
 import gvar as gv
 import time
 from mpi4py import MPI
+from scipy.special import erf
 
 comm = MPI.COMM_WORLD
 size = comm.Get_size()
 rank = comm.Get_rank()
+
 
 def fcn0(x_, p_):
     c0 = p_['C0']
@@ -23,8 +25,16 @@ def fcn1(x_, p_):
 
 def fcn2(x_, p_):
     c0 = p_['C0']
+    c1 = p_['C1']
     m = p_['m']
-    return c0 - 4*np.pi*np.sqrt(x_)*np.exp(-m*x_)/m
+    return c0 - c1*np.sqrt(x_)*np.exp(-m*x_)/m
+
+
+def fcn3(x_, p_):
+    c0 = p_['C0']
+    m = p_['m']
+    return c0*4*np.pi*(np.sqrt(np.pi)*erf(np.sqrt(m*x))/2/m**1.5 - np.sqrt(x_)*np.exp(-m*x_)/m)
+
 
 def print0(args, end='\n'):
     if rank == 0:
@@ -45,6 +55,19 @@ r2_table = np.array(r2_table)
 r_table = np.sqrt(r2_table)
 
 fdata = np.load("result_C_corr_3264.m0.032000.m20.150000.sum08.fold.pick_9_4.npy")
+
+###################
+# new check
+
+print(fdata.shape)
+fdata_ave = np.average(fdata, 0)
+fdata_err = np.average(fdata, 0)/np.sqrt(n_conf - 1)
+fdata_sub = fdata[:50, :]
+fdata_sub_ave = np.average(fdata_sub, 0)
+fdata_sub_err = np.average(fdata_sub, 0)/np.sqrt(n_conf - 1)
+exit(0)
+
+###################
 
 
 data = np.zeros(shape=(n_conf, r2_table.size))
@@ -159,3 +182,4 @@ e_s = 0.
 if rank == 0:
     e_s = get_p68_mean_and_error(bs_res_all)
 print0(e_s)
+
