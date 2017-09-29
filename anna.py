@@ -4,7 +4,8 @@ import numpy as np
 import gvar as gv
 import time
 from mpi4py import MPI
-from scipy.special import erf
+import warnings
+warnings.filterwarnings("error")
 
 comm = MPI.COMM_WORLD
 size = comm.Get_size()
@@ -20,20 +21,35 @@ def fcn1(x_, p_):
     c0 = p_['C0']  
     c1 = p_['C1']  
     m = p_['m']  
-    return c0+c1*np.exp(-m*x_)
+    try:
+        val_ = c0+c1*np.exp(-m*x_)
+    except RuntimeWarning:
+        return np.nan
+    else:
+        return val_
 
 
 def fcn2(x_, p_):
     c0 = p_['C0']
     c1 = p_['C1']
     m = p_['m']
-    return c0 - c1*np.sqrt(x_)*np.exp(-m*x_)/m
+    try:
+        val_ = c0 - c1*np.sqrt(x_)*np.exp(-m*x_)/m
+    except RuntimeWarning:
+        return np.nan
+    else:
+        return val_
 
 
 def fcn3(x_, p_):
     c0 = p_['C0']
     m = p_['m']
-    return c0*4*np.pi*(np.sqrt(np.pi)*erf(np.sqrt(m*x))/2/m**1.5 - np.sqrt(x_)*np.exp(-m*x_)/m)
+    try:
+        val_ = c0*(1. - 2.*np.sqrt(x_)*np.exp(-m*x_)*m**0.5/np.sqrt(np.pi)/gv.erf(np.sqrt(m*x_)))
+    except RuntimeWarning:
+        return np.nan
+    else:
+        return val_
 
 
 def print0(args, end='\n'):
@@ -59,13 +75,13 @@ fdata = np.load("result_C_corr_3264.m0.032000.m20.150000.sum08.fold.pick_9_4.npy
 ###################
 # new check
 
-print(fdata.shape)
-fdata_ave = np.average(fdata, 0)
-fdata_err = np.average(fdata, 0)/np.sqrt(n_conf - 1)
-fdata_sub = fdata[:50, :]
-fdata_sub_ave = np.average(fdata_sub, 0)
-fdata_sub_err = np.average(fdata_sub, 0)/np.sqrt(n_conf - 1)
-exit(0)
+#print(fdata.shape)
+#fdata_ave = np.average(fdata, 0)
+#fdata_err = np.average(fdata, 0)/np.sqrt(n_conf - 1)
+#fdata_sub = fdata[:50, :]
+#fdata_sub_ave = np.average(fdata_sub, 0)
+#fdata_sub_err = np.average(fdata_sub, 0)/np.sqrt(n_conf - 1)
+#exit(0)
 
 ###################
 
@@ -88,17 +104,6 @@ data_cov = np.cov(data, rowvar=False)/n_conf
 # data_cov = np.diag(np.diagonal(data_cov))
 y = gv.gvar(data_ave, data_cov)
 
-#np.random.seed(2)
-
-np.random.seed(0)
-#windows = get_random_window_range(x.size, 8, 5, 40)
-#`windows = get_random_window_range_fix_size(x.size, 7, 8)
-#windows = get_random_window_points(x.size, 8, 4, 60)
-windows = get_random_window_points_fix_size(x.size, 7, 60)
-
-#aic_fit = aic_fit_window
-aic_fit = aic_fit_filter
-
 prior0 =[]
 prior0.append({})
 prior0[0]['C0'] = gv.gvar(0.14, np.inf)
@@ -108,7 +113,11 @@ prior0[1]['C1'] = gv.gvar(0.1, np.inf)
 prior0[1]['m'] = gv.gvar(1.0, np.inf)
 prior0.append({})
 prior0[2]['C0'] = gv.gvar(0.14, np.inf)
+prior0[2]['C1'] = gv.gvar(0.1, np.inf)
 prior0[2]['m'] = gv.gvar(1.0, np.inf)
+prior0.append({})
+prior0[3]['C0'] = gv.gvar(0.14, np.inf)
+prior0[3]['m'] = gv.gvar(1.0, np.inf)
 
 p0 =[]
 p0.append({})
@@ -119,7 +128,11 @@ p0[1]['C1'] = 0.1
 p0[1]['m'] = 1.0
 p0.append({})
 p0[2]['C0'] = 0.14
+p0[2]['C1'] = 0.1
 p0[2]['m'] = 1.0
+p0.append({})
+p0[3]['C0'] = 0.14
+p0[3]['m'] = 1.0
 
 """
 print(x.size)
@@ -129,11 +142,37 @@ print_fit(fit)
 exit(0)
 """
 
-res = aic_fit(x, y, np.array([fcn0, fcn2]), (p0[0], p0[2]), windows, 'C0')
+np.random.seed(0)
+
+way = 3
+windows = None
+aic_fit = None
+if way == 0:
+    windows, bounds = get_random_window_range(x.size, 2, 4, 13)
+    aic_fit = aic_fit_filter
+elif way == 1:
+    windows, bounds = get_random_window_range_fix_size(x.size, 4, 13)
+    aic_fit = aic_fit_filter
+elif way == 2:
+    windows = get_random_window_points(x.size, 2, 5, 20)
+    aic_fit = aic_fit_filter
+elif way == 3:
+    windows = get_random_window_points_fix_size(x.size, 8, 20)
+    aic_fit = aic_fit_filter
+
+fcn = np.array([fcn0, fcn3])
+p0 = [p0[0], p0[3]]
+
+res = aic_fit(x, y, fcn, p0, windows, 'C0')
 print0('AIC mean value and systematic error:', end='\t')
 print0(res)
 
-nboot = 200
+#aic_fit = aic_fit_bounds
+#res = aic_fit(x, y, fcn, p0, bounds, 'C0')
+#print0('AIC mean value and systematic error:', end='\t')
+#print0(res)
+
+nboot = 100
 bs_res = []
 
 if int(nboot/size)*size != nboot:
@@ -146,6 +185,7 @@ print0('(begin AIC boot ...', end='\t')
 st = time.time()
 comm.Barrier()
 for ib in range(rank*size_per_core, (rank + 1)*size_per_core):
+    np.random.seed(rank)
     xb_ = get_boot_sample(np.arange(0, data.shape[0], 1))
     data_new_ = data[xb_, ...]
     data_ave_new_ = np.average(data_new_, 0)
@@ -153,7 +193,7 @@ for ib in range(rank*size_per_core, (rank + 1)*size_per_core):
     # data_cov = np.diag(np.diagonal(data_cov))
     y = gv.gvar(data_ave_new_, data_cov_new_)
 
-    res = aic_fit(x, y, np.array([fcn0, fcn2]), (p0[0], p0[2]), windows, 'C0')
+    res = aic_fit(x, y, fcn, p0, windows, 'C0')
     bs_res.append(res.mean)
 
 comm.Barrier()
@@ -176,6 +216,7 @@ if rank == 0:
     bs_res_all = np.empty([size, bs_res.size])
 comm.Gather(bs_res, bs_res_all, root=0)
 if rank == 0:
+    assert bs_res_all.size == nboot
     bs_res_all = np.array(bs_res_all).reshape(nboot)
 print0('AIC statistical error:',end='\t')
 e_s = 0.
